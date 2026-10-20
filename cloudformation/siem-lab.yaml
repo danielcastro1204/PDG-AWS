@@ -470,6 +470,19 @@ Resources:
           $env:SIEM_IP = "10.0.30.10"
           $env:DOMAIN  = "empresa.local"
           New-Item -ItemType Directory -Force -Path C:\lab | Out-Null
+          # Tras promoverse a Controlador de Dominio, este equipo pasa a ser su
+          # propio servidor DNS (rol DNS instalado + NIC apuntando a sí mismo).
+          # Si en ese arranque el forwarder hacia el resolver de la VPC aún no
+          # está configurado (se configura dentro de windows-dc.ps1, fase
+          # POSTAD), la resolución de nombres externos (p.ej. el bucket S3 del
+          # paquete de scripts) falla y el script nunca llega a ejecutarse para
+          # poder configurarlo: un bloqueo circular. Por eso se asegura aquí,
+          # ANTES de intentar descargar nada, si el rol DNS ya está instalado.
+          try {
+            if ((Get-Service -Name DNS -ErrorAction SilentlyContinue).Status -eq "Running") {
+              Add-DnsServerForwarder -IPAddress "169.254.169.253" -ErrorAction SilentlyContinue
+            }
+          } catch {}
           $u = $env:SCRIPTS_BASE_URL
           if ($u -like "s3://*") {
             $awscli = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"

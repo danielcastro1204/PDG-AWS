@@ -115,7 +115,12 @@ switch ($state) {
     } catch { Write-Warning "No se pudo fijar la contraseña del Administrator: $_" }
 
     # OUs
-    foreach ($ou in @("Usuarios","Computers")) {
+    # NOTA: "Computers" NO se puede usar como nombre de OU: AD ya crea por
+    # defecto un contenedor CN=Computers al promover el dominio, y el RDN
+    # debe ser único entre hermanos sin importar la clase del objeto (OU vs
+    # contenedor), así que colisiona ("name that is already in use"). Se usa
+    # "Equipos" en su lugar.
+    foreach ($ou in @("Usuarios","Equipos")) {
       try { Get-ADOrganizationalUnit -Identity "OU=$ou,DC=empresa,DC=local" -ErrorAction Stop | Out-Null }
       catch { New-ADOrganizationalUnit -Name $ou -Path "DC=empresa,DC=local" -ProtectedFromAccidentalDeletion $false }
     }

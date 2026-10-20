@@ -105,7 +105,7 @@ switch ($state) {
     $cred = New-Object System.Management.Automation.PSCredential(
       "$DOMAIN_ADMIN@$DOMAIN", (ConvertTo-SecureString $DOMAIN_ADMIN_PASS -AsPlainText -Force))
     try {
-      Add-Computer -DomainName $DOMAIN -Credential $cred -OUPath "OU=Computers,DC=empresa,DC=local" -Force -ErrorAction Stop
+      Add-Computer -DomainName $DOMAIN -Credential $cred -OUPath "OU=Equipos,DC=empresa,DC=local" -Force -ErrorAction Stop
     } catch {
       Log "Unión con OU personalizada falló; intentando unión estándar..."
       Add-Computer -DomainName $DOMAIN -Credential $cred -Force
