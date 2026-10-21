@@ -34,8 +34,16 @@ DOMAIN_ADMIN_PASS="${DOMAIN_ADMIN_PASS:-P@ssw0rd}"
 echo "[+] Escenario 3 (mixto) — duracion ${DURACION_MIN} min — $(date -u +%FT%TZ)"
 
 # --- 1. Trafico de fondo continuo (en la estacion de usuario real) ----------
+# SKIP_BASELINE=1 => el trafico de fondo lo orquesta el operador por fuera
+# (p.ej. desde la IP de administracion, que SI tiene acceso SSH a linux-01;
+# el atacante NO puede alcanzar la IP publica de linux-01 porque el security
+# group solo abre SSH a la IP de admin). Esta es la via correcta en AWS:
+# el tráfico normal se genera desde la estacion de usuario real y los ataques
+# desde el atacante, en paralelo.
 BG_LOCAL_PID=""
-if [ -n "${LINUX_WS_PUBLIC_IP:-}" ]; then
+if [ "${SKIP_BASELINE:-0}" = "1" ]; then
+  echo "[+] (SKIP_BASELINE=1) El trafico de fondo lo gestiona el operador externamente."
+elif [ -n "${LINUX_WS_PUBLIC_IP:-}" ]; then
   echo "[+] Lanzando trafico normal de fondo en linux-01 (${LINUX_WS_PUBLIC_IP})..."
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 \
       -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
