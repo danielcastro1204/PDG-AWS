@@ -20,7 +20,7 @@ escribir_hosts_lab
 
 apt-get update -qq
 apt-get install -y -qq curl wget gnupg lsb-release apt-transport-https ca-certificates \
-  net-tools ufw unzip openssh-server auditd audispd-plugins samba-client
+  net-tools ufw unzip openssh-server auditd audispd-plugins samba-client sshpass
 
 # --- Usuario objetivo de fuerza bruta SSH (Escenario 2) ----------------------
 # Contraseña "admin123" (presente en la wordlist del ataque) para que Hydra

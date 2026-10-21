@@ -78,6 +78,12 @@ export WIN_WS_IP="${WIN_WS_IP}"
 export SSH_TARGET="${SSH_TARGET}"
 export SSH_USER="usuario"
 export REPETICIONES="5"
+export DOMAIN_ADMIN="EMPRESA/Administrator"
+export DOMAIN_ADMIN_PASS="P@ssw0rd"
+# IP PUBLICA de linux-01 (Escenario 3: trafico de fondo real en la estacion de
+# usuario, por SSH, en vez de generarlo desde el atacante). Vacio = fallback
+# local dentro de escenario3_mixto.sh. Editala manualmente si hace falta:
+export LINUX_WS_PUBLIC_IP=""
 EOF
 cat > "/home/${ATTACKER_USER}/.profile_lab" <<EOF
 # === Laboratorio SIEM (AWS) — Estación atacante 10.0.30.20 ===

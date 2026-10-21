@@ -75,6 +75,37 @@ a2dissite 000-default 2>/dev/null || true
 systemctl restart apache2
 log "Apache configurado (logs en /var/log/apache2/)."
 
+# --- Samba (recurso compartido) + login SSH de prueba -------------------------
+# Usados por escenarios/escenario1_linea_base.sh para generar trafico normal
+# de "transferencia de archivos SMB" e "inicios de sesion" (metodologia del
+# proyecto, Fase 3 / Escenario 1), con credenciales debiles a proposito (igual
+# que el resto del laboratorio).
+if ! id usuario &>/dev/null; then
+  useradd -m -s /bin/bash usuario
+  echo "usuario:admin123" | chpasswd
+fi
+sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+mkdir -p /etc/ssh/sshd_config.d
+rm -f /etc/ssh/sshd_config.d/90-lab.conf
+echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/00-lab.conf
+systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+
+apt-get install -y -qq samba 2>/dev/null || true
+mkdir -p /srv/compartido
+chown usuario:usuario /srv/compartido
+cat >> /etc/samba/smb.conf <<'EOF'
+
+[compartido]
+   path = /srv/compartido
+   browsable = yes
+   writable = yes
+   guest ok = no
+   valid users = usuario
+EOF
+(echo "admin123"; echo "admin123") | smbpasswd -s -a usuario 2>/dev/null || true
+systemctl enable smbd 2>/dev/null || true
+systemctl restart smbd 2>/dev/null || true
+
 # --- Agente Wazuh + monitoreo de logs Apache ---------------------------------
 instalar_agente_wazuh "web-server"
 wazuh_localfile "apache" "/var/log/apache2/access.log"
