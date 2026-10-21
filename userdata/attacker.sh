@@ -28,8 +28,8 @@ apt-get update -qq
 apt-get install -y -qq \
   nmap hydra sqlmap nikto john hashcat smbclient netcat-traditional socat \
   gobuster dnsrecon whatweb wfuzz curl wget git python3-pip python3-venv pipx \
-  ruby ruby-dev build-essential libssl-dev 2>/dev/null || \
-  apt-get install -y -qq nmap hydra sqlmap nikto john smbclient netcat-traditional curl wget git python3-pip pipx ruby ruby-dev build-essential libssl-dev
+  ruby ruby-dev build-essential libssl-dev libreadline-dev libedit-dev sshpass 2>/dev/null || \
+  apt-get install -y -qq nmap hydra sqlmap nikto john smbclient netcat-traditional curl wget git python3-pip pipx ruby ruby-dev build-essential libssl-dev libreadline-dev libedit-dev sshpass
 apt-get install -y -qq seclists 2>/dev/null || true
 
 # Impacket + NetExec (sucesor de crackmapexec) vía pipx (aislado)
