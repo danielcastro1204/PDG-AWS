@@ -57,6 +57,11 @@ switch ($state) {
 
   "RENAME" {
     Set-TimeZone -Id "SA Pacific Standard Time" -ErrorAction SilentlyContinue
+    # La regla de firewall sola no basta: hay que habilitar el servicio WinRM
+    # (WinRM no escucha por defecto), necesario para attack5_payload_exec.sh.
+    Enable-PSRemoting -Force -SkipNetworkProfileCheck -ErrorAction SilentlyContinue | Out-Null
+    Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true -ErrorAction SilentlyContinue
+    Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true -ErrorAction SilentlyContinue
     New-NetFirewallRule -DisplayName "WinRM-Lab" -Direction Inbound -Protocol TCP -LocalPort 5985,5986 -Action Allow -Profile Any -ErrorAction SilentlyContinue | Out-Null
 
     # DNS -> Controlador de dominio (necesario para unirse al dominio)

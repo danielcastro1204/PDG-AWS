@@ -20,12 +20,17 @@ set_timezone
 escribir_hosts_lab
 
 apt-get update -qq
-# Herramientas disponibles directamente en los repos de Ubuntu
+# Herramientas disponibles directamente en los repos de Ubuntu.
+# NOTA: 'seclists' es un paquete de los repos de Kali, no existe en Ubuntu —
+# si se incluye en esta lista, apt-get falla ENTERO (no solo ese paquete) y
+# cae al fallback reducido de abajo, que no trae 'ruby' (necesario para
+# evil-winrm, usado por attack5_payload_exec.sh). Se instala aparte, opcional.
 apt-get install -y -qq \
   nmap hydra sqlmap nikto john hashcat smbclient netcat-traditional socat \
   gobuster dnsrecon whatweb wfuzz curl wget git python3-pip python3-venv pipx \
-  ruby ruby-dev build-essential libssl-dev seclists 2>/dev/null || \
-  apt-get install -y -qq nmap hydra sqlmap nikto john smbclient netcat-traditional curl wget git python3-pip pipx
+  ruby ruby-dev build-essential libssl-dev 2>/dev/null || \
+  apt-get install -y -qq nmap hydra sqlmap nikto john smbclient netcat-traditional curl wget git python3-pip pipx ruby ruby-dev build-essential libssl-dev
+apt-get install -y -qq seclists 2>/dev/null || true
 
 # Impacket + NetExec (sucesor de crackmapexec) vía pipx (aislado)
 export PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin

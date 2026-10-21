@@ -14,13 +14,24 @@ Uso:
 import argparse
 import csv
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
 
 def parse_ts(ts):
-    return datetime.strptime(ts.split(".")[0].replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
+    # Los timestamps de log_ataques.csv son UTC con sufijo "Z"; los de las
+    # alertas de Wazuh traen el offset de la zona horaria local del servidor
+    # (p.ej. "-0500"). Ambos deben normalizarse a UTC antes de comparar, o
+    # cualquier correlación cruzando medianoche local queda mal calculada.
+    ts = ts.strip()
+    if ts.endswith("Z"):
+        ts = ts[:-1] + "+0000"
+    try:
+        dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%f%z")
+    except ValueError:
+        dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S%z")
+    return dt.astimezone(timezone.utc)
 
 
 def cargar_ataques(path):

