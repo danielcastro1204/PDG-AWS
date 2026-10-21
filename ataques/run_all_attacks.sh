@@ -36,11 +36,18 @@ for i in $(seq 1 "${REPETICIONES}"); do
   ./attack1_bruteforce_ssh.sh "${SSH_TARGET}" "${SSH_USER}"      || true
   ./attack2_portscan.sh       "${DC_IP}"                          || true
   ./attack4_sqli.sh           "${WEB_URL}"                        || true
+  # El payload por WinRM (ataque 5) se ejecuta ANTES del Pass-the-Hash (ataque
+  # 3): ambos autentican como 'Administrator', y un Pass-the-Hash contra el DC
+  # deja ~2-4 min en los que la autenticacion de ese mismo usuario por WinRM
+  # contra la estacion devuelve WinRMAuthorizationError (contencion de
+  # credenciales del mismo principal). Ejecutar el payload primero evita esa
+  # ventana sin afectar la validez del estudio de deteccion: cada tecnica se
+  # ejecuta igual sus 5 veces y se detecta de forma independiente.
+  { echo "${DOMAIN_ADMIN}"; echo "${DOMAIN_ADMIN_PASS}"; } | \
+    ./attack5_payload_exec.sh "${WIN_WS_IP}"                      || true
   if [ -n "${NTHASH}" ]; then
     ./attack3_pass_the_hash.sh "${DC_IP}" Administrator "${NTHASH}" || true
   fi
-  { echo "${DOMAIN_ADMIN}"; echo "${DOMAIN_ADMIN_PASS}"; } | \
-    ./attack5_payload_exec.sh "${WIN_WS_IP}"                      || true
-  sleep 5
+  sleep 15
 done
 echo "=== Ataques completados (5 tecnicas x ${REPETICIONES} repeticiones). Revisar $(pwd)/log_ataques.csv ==="
