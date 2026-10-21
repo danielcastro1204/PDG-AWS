@@ -42,7 +42,7 @@ def main():
     encontradas = []
 
     try:
-        with open(args.alerts_file, "r", errors="ignore") as f:
+        with open(args.alerts_file, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -65,7 +65,7 @@ def main():
               f"Wazuh Manager o copia el archivo alerts.json localmente.", file=sys.stderr)
         sys.exit(1)
 
-    with open(args.out, "w") as f:
+    with open(args.out, "w", encoding="utf-8") as f:
         json.dump(encontradas, f, indent=2)
 
     print(f"[+] {len(encontradas)} alertas encontradas entre {args.inicio} y {args.fin}")

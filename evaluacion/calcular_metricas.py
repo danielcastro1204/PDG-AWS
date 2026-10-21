@@ -35,12 +35,12 @@ def parse_ts(ts):
 
 
 def cargar_ataques(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
 def cargar_alertas(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -113,7 +113,7 @@ def main():
         if not en_alguna_ventana(t):
             falsos_positivos += 1
 
-    with open(args.out, "w") as f:
+    with open(args.out, "w", encoding="utf-8") as f:
         f.write("# Reporte de metricas — Validacion SIEM\n\n")
         f.write(f"- Total de ataques ejecutados: **{total_ataques}**\n")
         f.write(f"- Ataques detectados: **{detectados}**\n")
