@@ -29,10 +29,16 @@ if ! id usuario &>/dev/null; then
   useradd -m -s /bin/bash usuario
   echo "usuario:admin123" | chpasswd
 fi
-# Permitir autenticación por contraseña en SSH (necesario para el ataque)
+# Permitir autenticación por contraseña en SSH (necesario para el ataque).
+# NOTA: las AMI de Ubuntu Cloud Image traen /etc/ssh/sshd_config.d/60-cloudimg-
+# settings.conf con "PasswordAuthentication no". sshd usa el PRIMER valor que
+# encuentra (no el último) al procesar sshd_config y sus Include, así que un
+# override nuestro debe leerse ANTES que ese archivo (orden alfabético) para
+# que realmente tenga efecto: 00-lab.conf, no 90-lab.conf.
 sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 mkdir -p /etc/ssh/sshd_config.d
-echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/90-lab.conf
+rm -f /etc/ssh/sshd_config.d/90-lab.conf
+echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/00-lab.conf
 systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null || true
 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 
