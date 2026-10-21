@@ -476,22 +476,33 @@ Resources:
           # está configurado (se configura dentro de windows-dc.ps1, fase
           # POSTAD), la resolución de nombres externos (p.ej. el bucket S3 del
           # paquete de scripts) falla y el script nunca llega a ejecutarse para
-          # poder configurarlo: un bloqueo circular. Por eso se asegura aquí,
-          # ANTES de intentar descargar nada, si el rol DNS ya está instalado.
-          try {
-            if ((Get-Service -Name DNS -ErrorAction SilentlyContinue).Status -eq "Running") {
-              Add-DnsServerForwarder -IPAddress "169.254.169.253" -ErrorAction SilentlyContinue
-            }
-          } catch {}
+          # poder configurarlo: un bloqueo circular. Se intenta el forwarder
+          # SIEMPRE (sin condicionarlo al estado exacto del servicio DNS en
+          # ese instante: justo tras el reinicio de la promoción, el servicio
+          # puede seguir "arrancando" cuando este script ya corre, y una
+          # comprobación de estado estricta pierde esa ventana). Además, la
+          # descarga se reintenta varias veces por si el DNS tarda unos
+          # segundos más en quedar listo para resolver.
           $u = $env:SCRIPTS_BASE_URL
-          if ($u -like "s3://*") {
-            $awscli = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
-            if (-not (Test-Path $awscli)) { $awscli = "aws" }
-            & $awscli s3 cp $u C:\lab --recursive
-          } else {
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri $u -OutFile C:\lab\bundle.tgz -UseBasicParsing
-            tar.exe -xzf C:\lab\bundle.tgz -C C:\lab
+          $descargado = $false
+          for ($intento = 1; $intento -le 5 -and -not $descargado; $intento++) {
+            try { Add-DnsServerForwarder -IPAddress "169.254.169.253" -ErrorAction SilentlyContinue } catch {}
+            try {
+              if ($u -like "s3://*") {
+                $awscli = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
+                if (-not (Test-Path $awscli)) { $awscli = "aws" }
+                & $awscli s3 cp $u C:\lab --recursive
+                if ($LASTEXITCODE -eq 0) { $descargado = $true }
+              } else {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                Invoke-WebRequest -Uri $u -OutFile C:\lab\bundle.tgz -UseBasicParsing
+                tar.exe -xzf C:\lab\bundle.tgz -C C:\lab
+                $descargado = $true
+              }
+            } catch {
+              Write-Host "Intento $intento de descarga del paquete fallo: $_"
+              Start-Sleep -Seconds 15
+            }
           }
           function Invoke-LabScript($rel){ powershell -ExecutionPolicy Bypass -File ("C:\lab\" + $rel.Replace('/','\')) }
           Invoke-LabScript "userdata/windows-dc.ps1"
@@ -523,15 +534,30 @@ Resources:
           $env:WAZUH_MANAGER_IP = "10.0.30.10"
           $env:DOMAIN = "empresa.local"
           New-Item -ItemType Directory -Force -Path C:\lab | Out-Null
+          # Tras la fase RENAME, el DNS de esta estación apunta al DC (para
+          # poder unirse al dominio). Si el DC aún no tiene listo su propio
+          # forwarder hacia el resolver de la VPC en ese momento exacto, la
+          # resolución de nombres externos falla transitoriamente. Se
+          # reintenta varias veces en vez de fallar a la primera.
           $u = $env:SCRIPTS_BASE_URL
-          if ($u -like "s3://*") {
-            $awscli = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
-            if (-not (Test-Path $awscli)) { $awscli = "aws" }
-            & $awscli s3 cp $u C:\lab --recursive
-          } else {
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri $u -OutFile C:\lab\bundle.tgz -UseBasicParsing
-            tar.exe -xzf C:\lab\bundle.tgz -C C:\lab
+          $descargado = $false
+          for ($intento = 1; $intento -le 5 -and -not $descargado; $intento++) {
+            try {
+              if ($u -like "s3://*") {
+                $awscli = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
+                if (-not (Test-Path $awscli)) { $awscli = "aws" }
+                & $awscli s3 cp $u C:\lab --recursive
+                if ($LASTEXITCODE -eq 0) { $descargado = $true }
+              } else {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                Invoke-WebRequest -Uri $u -OutFile C:\lab\bundle.tgz -UseBasicParsing
+                tar.exe -xzf C:\lab\bundle.tgz -C C:\lab
+                $descargado = $true
+              }
+            } catch {
+              Write-Host "Intento $intento de descarga del paquete fallo: $_"
+              Start-Sleep -Seconds 15
+            }
           }
           function Invoke-LabScript($rel){ powershell -ExecutionPolicy Bypass -File ("C:\lab\" + $rel.Replace('/','\')) }
           Invoke-LabScript "userdata/windows-ws.ps1"
