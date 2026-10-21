@@ -73,17 +73,13 @@ configurar_syslog() {
   [ -f "$CONF" ] || { warn "No existe ossec.conf"; return 0; }
   grep -q "<port>514</port>" "$CONF" 2>/dev/null && { warn "syslog 514 ya configurado"; return 0; }
   # El ossec.conf por defecto de Wazuh ya trae su propio <remote><connection>secure>
-  # (puerto 1514) para los agentes, y suele tener más de un bloque <ossec_config>
-  # de nivel superior (eso es válido en el formato de Wazuh: el parser OS_XML
-  # admite varios bloques <ossec_config> como hermanos en el mismo archivo).
-  # Por eso aquí solo quitamos el ÚLTIMO "</ossec_config>" (el cierre real de
-  # archivo) y añadimos un bloque NUEVO con solo el <remote> de syslog/514, sin
-  # repetir el <remote> secure/1514 que ya existe (Wazuh no admite dos).
-  local LAST_CLOSE_LINE
-  LAST_CLOSE_LINE="$(grep -n '</ossec_config>' "$CONF" | tail -1 | cut -d: -f1)"
-  if [ -n "$LAST_CLOSE_LINE" ]; then
-    sed -i "${LAST_CLOSE_LINE}d" "$CONF"
-  fi
+  # (puerto 1514) para los agentes. El formato de Wazuh (parser OS_XML) admite
+  # varios bloques <ossec_config> de nivel superior como HERMANOS en el mismo
+  # archivo, así que basta con AÑADIR un bloque nuevo al final —el archivo ya
+  # está bien cerrado tal cual viene de la instalación, no hay que tocar nada
+  # existente—. (Intentar "reabrir" el archivo borrando su último cierre fue
+  # justamente el bug original: deja un bloque sin cerrar). No se repite el
+  # <remote> secure/1514 que ya existe (Wazuh no admite dos).
   cat >> "$CONF" <<'EOF'
 
 <ossec_config>
