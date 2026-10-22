@@ -50,4 +50,21 @@ for i in $(seq 1 "${REPETICIONES}"); do
   fi
   sleep 15
 done
-echo "=== Ataques completados (5 tecnicas x ${REPETICIONES} repeticiones). Revisar $(pwd)/log_ataques.csv ==="
+
+# --- Variantes SIGILOSAS (evasion) -------------------------------------------
+# Ademas de las 5 tecnicas ruidosas, se ejecutan 3 variantes sigilosas que
+# intentan evadir la deteccion (fuerza bruta lenta, escaneo evasivo, SQLi
+# ofuscado). Dan una curva de deteccion realista: es esperable que el SIEM
+# detecte MENOS las sigilosas, lo cual es un resultado mas creible y permite
+# recomendar mejoras. Activar con INCLUIR_SIGILOSOS=1.
+if [ "${INCLUIR_SIGILOSOS:-0}" = "1" ]; then
+  echo "=== Variantes SIGILOSAS (${REPETICIONES}x cada una, 3 tecnicas de evasion) ==="
+  for i in $(seq 1 "${REPETICIONES}"); do
+    echo "--- Repeticion sigilosa ${i}/${REPETICIONES} ---"
+    ./sigilosos/attack1b_bruteforce_lento.sh "${SSH_TARGET}" "${SSH_USER}" 40 || true
+    ./sigilosos/attack2b_portscan_sigiloso.sh "${DC_IP}"                      || true
+    ./sigilosos/attack4b_sqli_evasion.sh      "${WEB_URL}"                    || true
+    sleep 15
+  done
+fi
+echo "=== Ataques completados. Revisar $(pwd)/log_ataques.csv ==="

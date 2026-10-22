@@ -44,6 +44,68 @@ def cargar_alertas(path):
         return json.load(f)
 
 
+# -----------------------------------------------------------------------------
+# Correlacion a NIVEL DE TECNICA (deteccion estricta).
+#
+# La deteccion "amplia" cuenta cualquier alerta en la ventana del ataque. Eso
+# sobreestima: muchas reglas (logon de Windows, sesion PAM) tambien se disparan
+# con actividad normal. La deteccion ESTRICTA solo cuenta como detectado el
+# ataque si se disparo una regla PERTINENTE a esa tecnica — se verifica por los
+# grupos de la regla de Wazuh (rule.groups) y/o por IDs de regla conocidos.
+# Cada entrada: nombre de ataque -> (substrings de grupo, ids de regla).
+# -----------------------------------------------------------------------------
+TECNICA_RELEVANCIA = {
+    "bruteforce_ssh":       (["authentication_fail", "authentication_failures",
+                              "invalid_login", "win_authentication_failed", "brute"],
+                             ["5551", "5712", "5720", "5716", "5710", "60122", "60204"]),
+    "bruteforce_ssh_lento": (["authentication_fail", "authentication_failures",
+                              "invalid_login", "brute"],
+                             ["5551", "5712", "5720", "5716", "5710"]),
+    "portscan":             (["ids", "suricata", "recon", "nmap", "portscan"],
+                             ["100040", "100099"]),
+    "portscan_sigiloso":    (["ids", "suricata", "recon", "nmap", "portscan"],
+                             ["100040", "100099"]),
+    "sql_injection":        (["sql_injection", "web_scan", "attack", "sqli", "web", "ids", "suricata"],
+                             ["31103", "31104", "31106", "31105", "31101"]),
+    "sqli_evasion":         (["sql_injection", "web_scan", "attack", "sqli", "web", "ids", "suricata"],
+                             ["31103", "31104", "31106", "31105", "31101"]),
+    "pass_the_hash":        (["ids", "suricata", "sysmon", "mimikatz", "pass_the_hash",
+                              "win_authentication_failed"],
+                             ["92650", "92652", "100030", "67027"]),
+    "payload_execution":    (["sysmon", "windows_powershell", "win_evtchannel",
+                              "powershell_script"],
+                             ["92650", "92652", "100030", "67027", "92031", "91802", "91803"]),
+}
+
+# Grupos que indican una alerta "de ataque" accionable (para el analisis de
+# falsos positivos sobre trafico legitimo): si alguno de estos se dispara fuera
+# de una ventana de ataque real, es una falsa alarma accionable.
+GRUPOS_ACCIONABLES = (
+    "authentication_failures", "authentication_failed", "invalid_login",
+    "attack", "attacks", "web_scan", "sql_injection", "sqli",
+    "recon", "ids", "suricata", "brute", "exploit", "mimikatz", "pass_the_hash",
+)
+
+
+def alerta_relevante(rule, ataque):
+    """True si la regla es pertinente a la tecnica del ataque (deteccion estricta)."""
+    grupos_rel, ids_rel = TECNICA_RELEVANCIA.get(ataque, ([], []))
+    rid = str(rule.get("id", ""))
+    if rid in ids_rel:
+        return True
+    grupos = [g.lower() for g in rule.get("groups", [])]
+    for g in grupos:
+        for sub in grupos_rel:
+            if sub in g:
+                return True
+    return False
+
+
+def es_accionable(rule):
+    grupos = [g.lower() for g in rule.get("groups", [])]
+    return any(any(ga in g for g in grupos) for ga in GRUPOS_ACCIONABLES)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ataques", required=True)
@@ -63,14 +125,16 @@ def main():
 
     filas = []
     total_ataques = len(ataques)
-    detectados = 0
-    tiempos_deteccion = []  # segundos entre inicio del ataque y la primera alerta correlacionada
+    detectados = 0          # deteccion amplia (cualquier alerta)
+    detectados_estrictos = 0  # deteccion estricta (regla pertinente a la tecnica)
+    tiempos_deteccion = []  # TTD estricto: inicio ataque -> primera alerta PERTINENTE
 
     for a in ataques:
         t_ini = parse_ts(a["inicio"]) - timedelta(seconds=args.margen_seg)
         t_fin = parse_ts(a["fin"]) + timedelta(seconds=args.margen_seg)
         matches = []
-        primera_alerta = None
+        matches_estrictos = []
+        primera_alerta_estricta = None
         for al in alertas:
             ts = al.get("timestamp")
             if not ts:
@@ -82,26 +146,33 @@ def main():
             if t_ini <= t <= t_fin:
                 rule = al.get("rule", {})
                 matches.append(rule.get("id", "?"))
-                if primera_alerta is None or t < primera_alerta:
-                    primera_alerta = t
+                if alerta_relevante(rule, a["ataque"]):
+                    matches_estrictos.append(rule.get("id", "?"))
+                    if primera_alerta_estricta is None or t < primera_alerta_estricta:
+                        primera_alerta_estricta = t
 
         detectado = len(matches) > 0
+        detectado_estricto = len(matches_estrictos) > 0
         if detectado:
             detectados += 1
-            ttd = (primera_alerta - parse_ts(a["inicio"])).total_seconds()
-            tiempos_deteccion.append(max(ttd, 0.0))
+        if detectado_estricto:
+            detectados_estrictos += 1
+            ttd = (primera_alerta_estricta - parse_ts(a["inicio"])).total_seconds()
+            tiempos_deteccion.append(ttd)
         filas.append({
             "ataque": a["ataque"],
             "mitre_id": a["mitre_id"],
             "objetivo": a["target_ip"],
             "inicio": a["inicio"],
-            "detectado": "Si" if detectado else "No",
-            "ttd_seg": f"{ttd:.1f}" if detectado else "-",
+            "det_amplia": "Si" if detectado else "No",
+            "det_estricta": "Si" if detectado_estricto else "No",
+            "reglas_pertinentes": ",".join(sorted(set(matches_estrictos))) if matches_estrictos else "-",
             "reglas_disparadas": ",".join(sorted(set(matches))) if matches else "-",
         })
 
     df = pd.DataFrame(filas)
     tasa_deteccion = (detectados / total_ataques * 100) if total_ataques else 0.0
+    tasa_estricta = (detectados_estrictos / total_ataques * 100) if total_ataques else 0.0
     mttd = (sum(tiempos_deteccion) / len(tiempos_deteccion)) if tiempos_deteccion else None
 
     # Falsos positivos: alertas de grupo 'attack' que NO caen en ninguna ventana de ataque real
@@ -111,11 +182,15 @@ def main():
     def en_alguna_ventana(t):
         return any(ini <= t <= fin for ini, fin in ventanas)
 
-    total_alertas_attack = 0
+    # Falsas alarmas ACCIONABLES: alertas con grupos de ataque (no solo el
+    # literal 'attack') disparadas FUERA de toda ventana de ataque real. Son
+    # las que un analista investigaria como posible incidente => el falso
+    # positivo que importa. (Se excluyen los eventos de auditoria rutinarios.)
+    total_alertas_accionables = 0
     falsos_positivos = 0
     for al in alertas:
         rule = al.get("rule", {})
-        if "attack" not in rule.get("groups", []):
+        if not es_accionable(rule):
             continue
         ts = al.get("timestamp")
         if not ts:
@@ -124,62 +199,64 @@ def main():
             t = parse_ts(ts)
         except ValueError:
             continue
-        total_alertas_attack += 1
+        total_alertas_accionables += 1
         if not en_alguna_ventana(t):
             falsos_positivos += 1
-    alertas_verdaderas = total_alertas_attack - falsos_positivos
+    alertas_verdaderas = total_alertas_accionables - falsos_positivos
 
-    # Metricas tipo clasificador binario (a nivel de intento de ataque / alerta):
-    #   Recall (sensibilidad)   = detectados / total_ataques            (ya es la "tasa de deteccion")
-    #   Precision (a nivel de alertas de grupo 'attack') = TP_alertas / (TP_alertas + FP_alertas)
-    #   F1 = 2 * (precision * recall) / (precision + recall)
-    recall = detectados / total_ataques if total_ataques else None
-    precision = (alertas_verdaderas / total_alertas_attack) if total_alertas_attack else None
+    # Recall = deteccion estricta (la metrica rigurosa); Precision = alertas
+    # accionables correctas / total accionables; F1 combina ambas.
+    recall = detectados_estrictos / total_ataques if total_ataques else None
+    precision = (alertas_verdaderas / total_alertas_accionables) if total_alertas_accionables else None
     f1 = (2 * precision * recall / (precision + recall)) if (precision and recall) else None
 
-    # Desglose por tipo de ataque (recall por tecnica)
+    # Desglose por tipo de ataque (amplia y estricta)
     resumen_tipo = df.groupby("ataque").agg(
-        intentos=("detectado", "count"),
-        detectados=("detectado", lambda s: (s == "Si").sum()),
+        intentos=("det_amplia", "count"),
+        det_amplia=("det_amplia", lambda s: (s == "Si").sum()),
+        det_estricta=("det_estricta", lambda s: (s == "Si").sum()),
     )
-    resumen_tipo["tasa_deteccion_%"] = (resumen_tipo["detectados"] / resumen_tipo["intentos"] * 100).round(1)
+    resumen_tipo["%_amplia"] = (resumen_tipo["det_amplia"] / resumen_tipo["intentos"] * 100).round(1)
+    resumen_tipo["%_estricta"] = (resumen_tipo["det_estricta"] / resumen_tipo["intentos"] * 100).round(1)
 
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(f"# {args.titulo}\n\n")
         f.write(f"- Total de ataques ejecutados: **{total_ataques}**\n")
-        f.write(f"- Ataques detectados (Verdaderos Positivos): **{detectados}**\n")
-        f.write(f"- Ataques no detectados (Falsos Negativos): **{total_ataques - detectados}**\n")
-        f.write(f"- **Tasa de deteccion / Recall: {tasa_deteccion:.1f}%** "
-                f"(criterio de exito del proyecto: >= 80%)\n")
+        f.write(f"- **Tasa de deteccion ESTRICTA (regla pertinente a la tecnica): "
+                f"{tasa_estricta:.1f}%** ({detectados_estrictos}/{total_ataques}) — "
+                f"metrica rigurosa, criterio del proyecto: >= 80%\n")
+        f.write(f"- Tasa de deteccion amplia (cualquier alerta correlacionada): "
+                f"{tasa_deteccion:.1f}% ({detectados}/{total_ataques})\n")
+        f.write(f"- Falsos negativos (ataques no detectados, criterio estricto): "
+                f"**{total_ataques - detectados_estrictos}**\n")
         if mttd is not None:
-            f.write(f"- Tiempo medio de deteccion (MTTD): **{mttd:.1f} s** "
-                    f"(desde el inicio del ataque hasta la primera alerta correlacionada)\n")
-        f.write(f"- Alertas de grupo 'attack' dentro de la ventana de prueba: **{total_alertas_attack}** "
-                f"(verdaderas: {alertas_verdaderas}, falsos positivos: **{falsos_positivos}**)\n")
+            f.write(f"- Tiempo medio de deteccion (MTTD estricto): {mttd:.1f} s "
+                    f"(ver limitaciones: ventanas solapadas)\n")
+        f.write(f"- Alertas accionables en la ventana: **{total_alertas_accionables}** "
+                f"(correctas: {alertas_verdaderas}, falsas alarmas accionables: **{falsos_positivos}**)\n")
         if precision is not None:
-            f.write(f"- **Precision (alertas 'attack' correctas / total alertas 'attack'): {precision*100:.1f}%**\n")
+            f.write(f"- Precision (alertas accionables correctas): {precision*100:.1f}%\n")
         if f1 is not None:
-            f.write(f"- **F1-score: {f1*100:.1f}%**\n")
-        f.write("\n## Desglose por tipo de ataque\n\n")
+            f.write(f"- F1-score: {f1*100:.1f}%\n")
+        f.write("\n## Desglose por tipo de ataque (deteccion amplia vs estricta)\n\n")
         f.write(resumen_tipo.to_markdown())
         f.write("\n\n## Detalle por intento de ataque\n\n")
         f.write(df.to_markdown(index=False))
-        f.write("\n\n## Matriz de correlacion (tipo de ataque -> reglas Wazuh disparadas)\n\n")
-        matriz = df.groupby("ataque")["reglas_disparadas"].apply(
+        f.write("\n\n## Matriz de correlacion (tecnica -> reglas Wazuh PERTINENTES disparadas)\n\n")
+        matriz = df.groupby("ataque")["reglas_pertinentes"].apply(
             lambda s: ", ".join(sorted(set(",".join(s).split(","))))
         )
         f.write(matriz.to_markdown())
         f.write("\n")
 
     print(df.to_string(index=False))
-    print(f"\nTasa de deteccion (recall): {tasa_deteccion:.1f}%")
+    print(f"\nTasa de deteccion ESTRICTA: {tasa_estricta:.1f}% ({detectados_estrictos}/{total_ataques})")
+    print(f"Tasa de deteccion amplia:   {tasa_deteccion:.1f}% ({detectados}/{total_ataques})")
     if precision is not None:
-        print(f"Precision: {precision*100:.1f}%")
+        print(f"Precision (accionables): {precision*100:.1f}%")
     if f1 is not None:
         print(f"F1-score: {f1*100:.1f}%")
-    if mttd is not None:
-        print(f"MTTD: {mttd:.1f} s")
-    print(f"Falsos positivos: {falsos_positivos} / {total_alertas_attack} alertas 'attack'")
+    print(f"Falsas alarmas accionables: {falsos_positivos} / {total_alertas_accionables}")
     print(f"Reporte completo guardado en {args.out}")
 
 

@@ -21,7 +21,7 @@ escribir_hosts_lab
 
 # --- Paquetes base + Apache ---------------------------------------------------
 apt-get update -qq
-apt-get install -y -qq curl wget gnupg lsb-release ca-certificates apt-transport-https net-tools vim apache2
+apt-get install -y -qq curl wget gnupg lsb-release ca-certificates apt-transport-https net-tools vim apache2 dnsutils swaks ntpdate sshpass 2>/dev/null || apt-get install -y -qq curl wget net-tools apache2 dnsutils
 systemctl enable apache2; systemctl start apache2
 
 # --- Logging detallado (igual que en el lab físico) ---------------------------
