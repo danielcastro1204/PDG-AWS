@@ -47,12 +47,21 @@ foreach ($v in @("SIEM_IP","DOMAIN")) {
   if ($val) { [Environment]::SetEnvironmentVariable($v, $val, "Machine") }
 }
 function Register-ResumeTask {
-  if (-not (Get-ScheduledTask -TaskName $TASK_NAME -ErrorAction SilentlyContinue)) {
-    $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$SELF_PATH`""
-    $t = New-ScheduledTaskTrigger -AtStartup
-    $p = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName $TASK_NAME -Action $a -Trigger $t -Principal $p -Force | Out-Null
-  }
+  # Tarea de reanudacion ROBUSTA: no basta con un disparador AtStartup (si esa
+  # unica corrida al arranque falla porque el DNS/AD aun no estan listos, no
+  # reintenta y el aprovisionamiento queda colgado esperando un reinicio que no
+  # llega — EC2Launch v2 de Windows Server 2019 NO re-ejecuta el user-data en
+  # cada boot como hacia v1 con <persist>). Por eso se añade ademas un
+  # disparador que REPITE cada 3 min durante 2 h: aunque una corrida pille el
+  # entorno a medias, reintenta sola hasta completar (el script se auto-elimina
+  # la tarea al llegar a DONE). Totalmente automatico, sin intervencion manual.
+  $a  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$SELF_PATH`""
+  $t1 = New-ScheduledTaskTrigger -AtStartup
+  $t2 = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) `
+          -RepetitionInterval (New-TimeSpan -Minutes 3) -RepetitionDuration (New-TimeSpan -Hours 2)
+  $p  = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+  $s  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+  Register-ScheduledTask -TaskName $TASK_NAME -Action $a -Trigger $t1,$t2 -Principal $p -Settings $s -Force | Out-Null
 }
 function Unregister-ResumeTask { Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false -ErrorAction SilentlyContinue }
 if (Test-Path $SELF_PATH) { Register-ResumeTask }

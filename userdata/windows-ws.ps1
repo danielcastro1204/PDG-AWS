@@ -40,12 +40,18 @@ foreach ($v in @("VM_HOSTNAME","VM_DNS","WAZUH_MANAGER_IP","DOMAIN")) {
   if ($val) { [Environment]::SetEnvironmentVariable($v, $val, "Machine") }
 }
 function Register-ResumeTask {
-  if (-not (Get-ScheduledTask -TaskName $TASK_NAME -ErrorAction SilentlyContinue)) {
-    $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$SELF_PATH`""
-    $t = New-ScheduledTaskTrigger -AtStartup
-    $p = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName $TASK_NAME -Action $a -Trigger $t -Principal $p -Force | Out-Null
-  }
+  # Tarea de reanudacion ROBUSTA (ver windows-dc.ps1): disparador AtStartup MAS
+  # repeticion cada 3 min durante 2 h, para que el aprovisionamiento se reanude
+  # y complete solo aunque una corrida pille el DC/DNS a medias. EC2Launch v2 no
+  # re-ejecuta el user-data en cada boot, asi que esta tarea es el mecanismo
+  # fiable de reanudacion. Se auto-elimina al llegar a DONE.
+  $a  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$SELF_PATH`""
+  $t1 = New-ScheduledTaskTrigger -AtStartup
+  $t2 = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) `
+          -RepetitionInterval (New-TimeSpan -Minutes 3) -RepetitionDuration (New-TimeSpan -Hours 2)
+  $p  = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+  $s  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+  Register-ScheduledTask -TaskName $TASK_NAME -Action $a -Trigger $t1,$t2 -Principal $p -Settings $s -Force | Out-Null
 }
 function Unregister-ResumeTask { Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false -ErrorAction SilentlyContinue }
 if (Test-Path $SELF_PATH) { Register-ResumeTask }
