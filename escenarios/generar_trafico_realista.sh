@@ -109,7 +109,7 @@ usuario_cliente() {
       8)     enviar_correo ;;        # 10% correo
       9)     consulta_dns; navegar_portal ;;  # 10% combinado
     esac
-    espera 18 4
+    espera 8 2    # red mas viva: acciones cada 2-10 s por usuario
   done
 }
 usuario_servidor() {
@@ -122,11 +122,11 @@ usuario_servidor() {
       4)   curl -s -m5 -o /dev/null "http://${WEB_IP}/" && log "health-check web" ;;
       5)   enviar_correo ;;
     esac
-    espera 25 8
+    espera 12 4
   done
 }
 usuario_dns() {
-  while activo; do consulta_dns; espera 10 2; done
+  while activo; do consulta_dns; espera 5 1; done
 }
 
 log "Inicio trafico realista (${DURACION_MIN} min, intensidad ${INTENSIDAD})"

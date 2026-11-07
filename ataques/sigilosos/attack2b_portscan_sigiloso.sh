@@ -9,11 +9,18 @@ set -uo pipefail
 source "$(dirname "$0")/../_lib_log_ataque.sh"
 TARGET="${1:?Uso: $0 <IP_OBJETIVO>}"
 
+FW_IP="${FW_IP:-10.0.30.30}"
 INICIO=$(log_inicio)
-echo "[+] Escaneo SIGILOSO de ${TARGET} (-T1 paranoico, fragmentado, con senuelos)..."
-# -T1: timing muy lento; -f: fragmenta; -D: senuelos (oculta el origen real);
-# --scan-delay: separa los paquetes; puertos tipicos solamente.
-sudo nmap -sS -T1 -f -D RND:5 --scan-delay 2s -p 22,80,135,139,389,443,445,3389,5985 \
+echo "[+] Escaneo SIGILOSO de ${TARGET} y del perimetro ${FW_IP} (-T1 paranoico, fragmentado)..."
+# -T1: timing muy lento; -f: fragmenta; --scan-delay: separa los paquetes.
+# Evade la deteccion POR FIRMA (umbral de Suricata). Se escanea tambien el
+# firewall perimetral (${FW_IP}): aunque la firma se evada, la correlacion de
+# conexiones nuevas registradas por el firewall (regla 100022, defensa en
+# profundidad) puede detectar el patron low-and-slow por volumen/origen.
+# (Se omiten los senuelos -D para no fragmentar la correlacion por IP origen.)
+sudo nmap -sS -T1 -f --scan-delay 2s -p 22,80,135,139,389,443,445,3389,5985 \
   "${TARGET}" -oN "/tmp/nmap_sigiloso_$(date +%s).log" &>/dev/null || true
+sudo nmap -sS -T1 -f --scan-delay 1s -p 22,23,445,3389,1433,3306 \
+  "${FW_IP}" -oN "/tmp/nmap_sigiloso_fw_$(date +%s).log" &>/dev/null || true
 log_fin "portscan_sigiloso" "T1046" "${TARGET}" "${INICIO}" "1"
 echo "[+] Ataque sigiloso registrado en log_ataques.csv"
