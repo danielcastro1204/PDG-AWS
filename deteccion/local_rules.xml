@@ -50,16 +50,19 @@
        un mismo origen hacia puertos distintos en una ventana LARGA (10 min),
        umbral bajo. Requiere que fw-gateway reenvie el log de conexiones nuevas
        de nftables (ver fw-gateway.sh). -->
-  <!-- Regla base: cada conexion nueva registrada por el firewall perimetral
-       (decodificada por local_decoder.xml, que extrae srcip/dstip/dstport). -->
-  <rule id="100004" level="3">
-    <decoded_as>fw-gateway</decoded_as>
-    <description>Conexion nueva registrada por el firewall perimetral (fuente de log #2)</description>
+  <!-- El decoder nativo de Wazuh (netfilter) ya decodifica los logs del firewall
+       perimetral (FW-NEW-CONN/FW-SYN) y extrae srcip/dstport, pero su regla base
+       4100 es de NIVEL 0 y no se contabiliza de forma fiable en la correlacion
+       por frecuencia. Esta regla intermedia la reclasifica a nivel 2 (no genera
+       alarma por si sola) para que la correlacion de escaneo sigiloso la cuente. -->
+  <rule id="100003" level="2">
+    <if_sid>4100</if_sid>
+    <description>Conexion nueva registrada por el firewall perimetral (base para correlacion)</description>
     <group>firewall,</group>
   </rule>
 
   <rule id="100022" level="9" frequency="6" timeframe="600">
-    <if_matched_sid>100004</if_matched_sid>
+    <if_matched_sid>100003</if_matched_sid>
     <same_source_ip />
     <description>Posible escaneo de puertos sigiloso (low-and-slow): multiples conexiones a puertos distintos desde el mismo origen en 10 min (T1046)</description>
     <mitre><id>T1046</id></mitre>

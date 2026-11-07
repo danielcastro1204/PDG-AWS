@@ -108,15 +108,10 @@ desplegar_reglas() {
   else
     warn "No se encontró $SRC (se usarán solo reglas por defecto de Wazuh)."
   fi
-  # Decoder del firewall perimetral (extrae srcip/dstip/dstport de los logs
-  # nftables para la correlacion de escaneo sigiloso, regla 100022).
-  local DSRC="${LAB_DIR}/deteccion/local_decoder.xml"
-  local DDST="/var/ossec/etc/decoders/local_decoder.xml"
-  if [ -f "$DSRC" ]; then
-    cp "$DSRC" "$DDST"
-    chown wazuh:wazuh "$DDST" 2>/dev/null || true
-    log "Decoder del firewall desplegado desde $DSRC"
-  fi
+  # Nota: no se requiere decoder propio para el firewall — el decoder nativo
+  # de Wazuh (netfilter) ya parsea los logs nftables (FW-NEW-CONN/FW-SYN) y
+  # extrae srcip/dstport, disparando la regla base 4100 sobre la que correla la
+  # regla 100022 (escaneo sigiloso).
   systemctl restart wazuh-manager 2>/dev/null || true
 }
 desplegar_reglas
