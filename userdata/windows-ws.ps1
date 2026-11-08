@@ -169,10 +169,46 @@ switch ($state) {
           "WAZUH_REGISTRATION_SERVER=$WAZUH_MANAGER_IP","WAZUH_AGENT_NAME=$VM_HOSTNAME",
           "WAZUH_MANAGER_PORT=1514","WAZUH_REGISTRATION_PORT=1515") -Wait
         Set-Service -Name WazuhSvc -StartupType Automatic -ErrorAction SilentlyContinue
-        Start-Service WazuhSvc -ErrorAction SilentlyContinue
         Log "Agente Wazuh instalado."
       } catch { Write-Warning "No se pudo instalar el agente Wazuh: $_" }
     }
+
+    # --- Suscripcion del agente al canal de Sysmon (IMPRESCINDIBLE) ----------
+    # Por defecto el agente de Wazuh en Windows solo lee Application/Security/
+    # System. Los eventos de Sysmon (creacion de proceso con linea de comando,
+    # Event ID 1) viven en 'Microsoft-Windows-Sysmon/Operational' y NO se
+    # recogen salvo que se anada este <localfile>. Sin esto, las reglas de
+    # ejecucion de payload (100050/100051) y la deteccion de herramientas de
+    # movimiento lateral via Sysmon (100031) nunca se disparan.
+    # --- PowerShell Script Block Logging (Event 4104) -----------------------
+    # Registra el contenido DECODIFICADO de los scripts de PowerShell, incluidos
+    # los ejecutados con -EncodedCommand. Refuerza la deteccion de payloads
+    # ofuscados (download cradles IEX/DownloadString) junto con Sysmon Event 1.
+    try {
+      $sbl = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging"
+      New-Item -Path $sbl -Force | Out-Null
+      Set-ItemProperty -Path $sbl -Name EnableScriptBlockLogging -Value 1 -Type DWord
+    } catch { Write-Warning "No se pudo habilitar Script Block Logging: $_" }
+
+    $ossecConf = "C:\Program Files (x86)\ossec-agent\ossec.conf"
+    if ((Test-Path $ossecConf) -and -not (Select-String -Path $ossecConf -Pattern "Sysmon/Operational" -SimpleMatch -Quiet)) {
+      Log "Suscribiendo el agente al canal Microsoft-Windows-Sysmon/Operational..."
+      $block = @"
+  <localfile>
+    <location>Microsoft-Windows-Sysmon/Operational</location>
+    <log_format>eventchannel</log_format>
+  </localfile>
+"@
+      $raw = Get-Content -Raw -Path $ossecConf
+      # Insertar el bloque antes del cierre del ultimo </ossec_config>
+      $idx = $raw.LastIndexOf("</ossec_config>")
+      if ($idx -ge 0) {
+        $new = $raw.Substring(0,$idx) + $block + "`r`n" + $raw.Substring($idx)
+        Set-Content -Path $ossecConf -Value $new -Encoding UTF8
+      }
+    }
+    Restart-Service WazuhSvc -ErrorAction SilentlyContinue
+    Start-Service WazuhSvc -ErrorAction SilentlyContinue
 
     # RDP para administración
     Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0

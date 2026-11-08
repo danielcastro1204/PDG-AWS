@@ -37,8 +37,31 @@ set_timezone() {
   timedatectl set-ntp true 2>/dev/null || true
 }
 
+# DUAL-STACK: habilita la IPv6 de la ENI. AWS asigna una direccion IPv6 a la
+# interfaz (el template pide Ipv6AddressCount), pero el netplan por defecto de
+# la AMI solo solicita DHCPv4. Aqui se habilita DHCPv6 + Router Advertisements
+# para que la interfaz levante su IPv6 (dual-stack real, sin DHCPv6 propio).
+habilitar_ipv6() {
+  local iface; iface=$(detectar_iface); [ -n "$iface" ] || iface=ens5
+  cat > /etc/netplan/99-ipv6.yaml <<EOF
+network:
+  version: 2
+  ethernets:
+    ${iface}:
+      dhcp6: true
+      accept-ra: true
+EOF
+  chmod 600 /etc/netplan/99-ipv6.yaml 2>/dev/null || true
+  sysctl -w net.ipv6.conf.all.disable_ipv6=0 2>/dev/null || true
+  sysctl -w "net.ipv6.conf.${iface}.accept_ra=2" 2>/dev/null || true
+  netplan apply 2>/dev/null || true
+  sleep 3
+  info "IPv6 habilitada en ${iface}: $(ip -6 addr show dev "$iface" scope global 2>/dev/null | awk '/inet6/{print $2}' | head -1)"
+}
+
 # Entradas /etc/hosts del laboratorio (esquema AWS 10.0.x.y)
 escribir_hosts_lab() {
+  habilitar_ipv6
   local marker="# --- SIEM LAB (AWS) ---"
   grep -q "$marker" /etc/hosts && return 0
   cat >> /etc/hosts <<EOF

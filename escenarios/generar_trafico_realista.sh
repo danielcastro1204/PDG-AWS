@@ -56,6 +56,8 @@ WEB_PATHS=(
   "/index.php?id=7" "/" "/index.php?id=100" "/index.php?id=3"
 )
 
+# Dual-stack: envuelve una IPv6 entre corchetes para URLs/UNC; IPv4 sin cambios.
+brk() { case "$1" in *:*) echo "[$1]";; *) echo "$1";; esac; }
 log() { echo "  [$(date -u +%H:%M:%S)][${ROL}] $*"; }
 activo() { [ "$(date +%s)" -lt "$FIN" ]; }
 espera() { sleep $(( (RANDOM % ${1:-15}) + ${2:-3} )); }
@@ -67,7 +69,7 @@ navegar_externo() {
 }
 navegar_portal() {
   local p=${WEB_PATHS[$RANDOM % ${#WEB_PATHS[@]}]}
-  curl -s -m 5 -o /dev/null "http://${WEB_IP}${p}" && log "portal corp ${p}"
+  curl -s -g -m 5 -o /dev/null "http://$(brk "${WEB_IP}")${p}" && log "portal corp ${p}"
 }
 consulta_dns() {
   local d=${DOMINIOS[$RANDOM % ${#DOMINIOS[@]}]}
@@ -119,7 +121,7 @@ usuario_servidor() {
       0|1) consulta_dns ;;
       2)   navegar_externo ;;
       3)   sync_ntp ;;
-      4)   curl -s -m5 -o /dev/null "http://${WEB_IP}/" && log "health-check web" ;;
+      4)   curl -s -g -m5 -o /dev/null "http://$(brk "${WEB_IP}")/" && log "health-check web" ;;
       5)   enviar_correo ;;
     esac
     espera 12 4

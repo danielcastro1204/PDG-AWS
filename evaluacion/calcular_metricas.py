@@ -69,8 +69,11 @@ TECNICA_RELEVANCIA = {
                              ["31103", "31104", "31106", "31105", "31101", "100040", "100041"]),
     "sqli_evasion":         (["sql_injection", "web_scan", "sqli", "web", "ids", "suricata"],
                              ["31103", "31104", "31106", "31105", "31101", "100040", "100041"]),
+    # PtH: deteccion fiable por COMPORTAMIENTO de host (92650 servicio creado
+    # desde ADMIN$) + Sysmon (100031). 100032 quedo como informativa (no cuenta
+    # como deteccion: a nivel de red el PtH no se distingue de la admin legitima).
     "pass_the_hash":        (["lateral_movement", "pth", "sysmon", "mimikatz"],
-                             ["100031", "100032", "92650", "92652"]),
+                             ["100031", "92650", "92652"]),
     "payload_execution":    (["execution", "payload", "sysmon", "windows_powershell",
                               "win_evtchannel", "powershell_script"],
                              ["100050", "100051", "92650", "92652", "92031", "91802", "91803"]),

