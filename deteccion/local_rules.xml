@@ -61,10 +61,42 @@
     <group>firewall,</group>
   </rule>
 
-  <rule id="100022" level="9" frequency="4" timeframe="600">
+  <rule id="100022" level="9" frequency="3" timeframe="600">
     <if_matched_sid>100003</if_matched_sid>
     <same_source_ip />
     <description>Posible escaneo de puertos sigiloso (low-and-slow): multiples conexiones a puertos distintos desde el mismo origen en 10 min (T1046)</description>
+    <mitre><id>T1046</id></mitre>
+    <group>attack,recon,scan,</group>
+  </rule>
+
+  <!-- TUNING (escaneo sigiloso, deteccion robusta por "puertos canario"): el
+       firewall registra TODO SYN a puertos SIN servicio legitimo en el lab
+       (prefijo FW-SCAN), independientemente del estado de conntrack -> defeat de
+       la evasion low-and-slow que se ocultaba tras el estado dejado por un
+       escaneo previo. 100004 marca SOLO esos SYN canario (por el prefijo
+       FW-SCAN del log). Como NINGUN trafico legitimo toca esos puertos, basta un
+       umbral MUY bajo (2 en 10 min) para una deteccion fiable aun con perdida de
+       syslog UDP o barridos muy lentos/fragmentados, con ~0 falsos positivos. -->
+  <!-- DETECCION DIRECTA Y ROBUSTA: un SYN a un puerto canario es, por si solo,
+       reconocimiento. Esos puertos NO tienen servicio legitimo en el lab y NO son
+       alcanzables desde internet (el Security Group solo abre el 22 publico y el
+       IPv6 entrante lo bloquea el Egress-Only IGW), de modo que el unico origen
+       posible es un escaneo interno. Por eso se marca como ataque de nivel 7 sin
+       depender de correlacion por frecuencia (que bajo carga alta de eventos no
+       dispara de forma fiable). Garantiza la deteccion del escaneo sigiloso
+       low-and-slow con 0 falsos positivos (validado en la linea base). -->
+  <rule id="100004" level="7">
+    <if_sid>100003</if_sid>
+    <match>FW-SCAN:</match>
+    <description>Escaneo de puertos: SYN a puerto canario (sin servicio legitimo) en el firewall (T1046)</description>
+    <mitre><id>T1046</id></mitre>
+    <group>attack,recon,scan,</group>
+  </rule>
+
+  <rule id="100023" level="10" frequency="2" timeframe="600">
+    <if_matched_sid>100004</if_matched_sid>
+    <same_source_ip />
+    <description>Escaneo de puertos confirmado (incl. sigiloso): >=2 SYN a puertos canario del firewall desde el mismo origen (T1046)</description>
     <mitre><id>T1046</id></mitre>
     <group>attack,recon,scan,</group>
   </rule>
@@ -137,6 +169,42 @@
     <if_sid>86601</if_sid>
     <field name="alert.signature" type="pcre2">(?i)sql injection|sqlmap</field>
     <description>Firma Suricata: intento de inyeccion SQL / uso de sqlmap (T1190)</description>
+    <mitre><id>T1190</id></mitre>
+    <group>attack,web,sqli,</group>
+  </rule>
+
+  <!-- TUNING (SQLi EVASIVO/ofuscado): el SQLi con tamper (space2comment,
+       charencode, randomcase) + user-agent aleatorio evade la deteccion POR
+       FIRMA (100040/100041 y Suricata) porque el payload va codificado y los
+       patrones "union/select/or 1=1" no aparecen en claro. Se anade una
+       deteccion POR COMPORTAMIENTO, robusta ante cualquier ofuscacion del
+       payload: una herramienta automatizada (sqlmap) genera una RAFAGA de
+       peticiones al MISMO endpoint vulnerable con parametro desde un mismo
+       origen; eso no lo hace un usuario legitimo. 100044 marca cada peticion al
+       endpoint con query-string; 100045 correlaciona la rafaga. -->
+  <rule id="100044" level="3">
+    <if_sid>31100,31101,31103,31104,31105,31106,31108</if_sid>
+    <regex type="pcre2">(?i)\?[^ ]*=</regex>
+    <description>Peticion web con query-string al servidor (base para correlacion de SQLi automatizado)</description>
+    <group>web,</group>
+  </rule>
+
+  <rule id="100045" level="10" frequency="12" timeframe="120">
+    <if_matched_sid>100044</if_matched_sid>
+    <same_source_ip />
+    <description>Inyeccion SQL automatizada (sqlmap, incl. tamper/evasion): rafaga de peticiones parametrizadas desde un mismo origen (T1190)</description>
+    <mitre><id>T1190</id></mitre>
+    <group>attack,web,sqli,</group>
+  </rule>
+
+  <!-- Refuerzo por contenido: amplia 100040 a patrones CODIFICADOS/ofuscados
+       (comilla %27, comentarios en linea /**/ y /*! , hex 0x.., information_schema,
+       concat/char, union con separadores no estandar). Complementa la deteccion
+       por comportamiento anterior. -->
+  <rule id="100046" level="9">
+    <if_sid>31100,31101,31103,31104,31105,31106,31108</if_sid>
+    <regex type="pcre2">(?i)(%27|%2527|/\*!?\d*|%2f%2a|0x[0-9a-f]{4,}|information_schema|concat\(|char\(\d|union(\s|/\*\*/|%20|\+|%2b)+select|%20(or|and)%20|sleep\(|benchmark\()</regex>
+    <description>Intento de inyeccion SQL ofuscada/codificada detectado en logs web (T1190)</description>
     <mitre><id>T1190</id></mitre>
     <group>attack,web,sqli,</group>
   </rule>

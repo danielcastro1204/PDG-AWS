@@ -1,0 +1,38 @@
+# Evidencia de infraestructura (antes del teardown) — 2026-11-16T00:26:57Z
+
+## Instancias EC2 (9)
+------------------------------------------------------------------------------------------------------------
+|                                             DescribeInstances                                            |
++------------------------------------------------+-------------+-------------------------------------------+
+|                      Name                      |    Priv     |                    V6                     |
++------------------------------------------------+-------------+-------------------------------------------+
+|  Linux-WS-01 (VLAN20)                          |  10.0.20.40 |  2600:1f18:5b44:3901:c136:1e18:d4af:b568  |
+|  Win-WS-01 (VLAN20)                            |  10.0.20.30 |  2600:1f18:5b44:3901:fc60:476:e3ab:da7e   |
+|  DNS1-BIND9 (VLAN10)                           |  10.0.10.50 |  2600:1f18:5b44:3900:4ce3:10fa:6da:93e    |
+|  NTP-chrony (VLAN10)                           |  10.0.10.80 |  2600:1f18:5b44:3900:4b8e:2030:785a:903   |
+|  Atacante (VLAN30 - sustituto Kali)            |  10.0.30.20 |  2600:1f18:5b44:3902:78b2:5fb4:e325:5e7e  |
+|  SIEM-Wazuh (VLAN30)                           |  10.0.30.10 |  2600:1f18:5b44:3902:473b:cd31:6cc5:e7fa  |
+|  Web-Server + Suricata (VLAN10)                |  10.0.10.10 |  2600:1f18:5b44:3900:9285:6c59:8422:fc2a  |
+|  Windows-DC (VLAN10)                           |  10.0.10.20 |  2600:1f18:5b44:3900:df22:d5db:5f0b:4300  |
+|  Firewall-Gateway (VLAN30 - sustituto pfSense) |  10.0.30.30 |  2600:1f18:5b44:3902:3a8:5f46:120c:843c   |
++------------------------------------------------+-------------+-------------------------------------------+
+
+## Agentes Wazuh
+
+Wazuh agent_control. List of available agents:
+   ID: 000, Name: wazuh-server (server), IP: 127.0.0.1, Active/Local
+   ID: 001, Name: fw-gateway, IP: any, Active
+   ID: 002, Name: ntp-server, IP: any, Active
+   ID: 003, Name: dns1-server, IP: any, Active
+   ID: 004, Name: web-server, IP: any, Active
+   ID: 005, Name: linux-01, IP: any, Active
+   ID: 006, Name: dc-empresa, IP: any, Active
+   ID: 007, Name: win-ws-01, IP: any, Active
+
+List of agentless devices:
+
+
+## Teardown verificado — 2026-11-16T00:29:54Z
+- stack siem-lab: ELIMINADO (describe-stacks: does not exist)
+- instancias running/stopped: 0
+- bucket S3 siem-lab-...: ELIMINADO

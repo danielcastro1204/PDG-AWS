@@ -65,6 +65,8 @@ web (Apache), Sysmon (estaciones Windows) e IDS (Suricata). Ver el mapeo para el
 AWS/
 ├── README.md                     # este archivo
 ├── GUIA_DESPLIEGUE_AWS.md        # paso a paso para AWS Academy
+├── GUIA_TECNICA_DESPLIEGUE.md    # guía técnica completa (verificación, reglas, troubleshooting)
+├── RESULTADOS_CONSOLIDADOS.md    # cifras de todas las corridas (1 a 7)
 ├── MAPEO_RED_FISICA_A_AWS.md     # equivalencias físico → AWS y justificación
 ├── run_all_aws.sh                # ORQUESTADOR end-to-end (despliega+prueba+reporte)
 ├── deploy.sh                     # despliegue de un comando (CloudFormation + S3)
@@ -82,12 +84,27 @@ AWS/
 │   ├── dns1/dns2/dhcpv4/dhcpv6/ntp/smtp-server.sh
 │   ├── windows-dc.ps1            #   DC AD DS/DNS (máquina de estados con reinicios)
 │   └── windows-ws.ps1            #   estación Windows (join dominio + Sysmon + agente)
-├── deteccion/local_rules.xml     # reglas de correlación MITRE (reutilizadas sin cambios)
+├── deteccion/local_rules.xml     # reglas de correlación MITRE (versión final afinada)
 ├── config/sysmonconfig.xml       # configuración Sysmon (reutilizada sin cambios)
 ├── ataques/                      # los 5 ataques + orquestador (reutilizados; honran env)
 ├── escenarios/                   # escenario 1 (línea base) y 3 (mixto)
-└── evaluacion/                   # recolección de alertas y cálculo de métricas (Python)
+├── evaluacion/                   # recolección de alertas y cálculo de métricas (Python)
+└── resultados … resultados_v7/   # evidencias y reportes de cada corrida
 ```
+
+## Resultados
+
+Criterio de éxito: detección estricta ≥ 80 %. Última corrida (v7, despliegue desde cero):
+
+| Escenario | Detección estricta | Precisión | F1 | FP accionables |
+|---|---|---|---|---|
+| E2 · 40 ataques (5 técnicas + 3 variantes de evasión) · IPv4 | **95,0 %** (38/40) | 100 % | 97,4 % | 0 |
+| E2 · 40 ataques · IPv6 | **92,5 %** (37/40) | 100 % | 96,1 % | 0 |
+| E3 · tráfico mixto · IPv4 | **100 %** (4/4) | 98,7 % | 99,4 % | 11 de baja severidad |
+
+Las cinco técnicas núcleo se detectan al 100 % en ambas familias de direcciones. Límite
+conocido: el escaneo sigiloso fragmentado se detecta en 60 % (IPv4) y 40 % (IPv6) de los
+intentos. Histórico completo de las siete corridas: [RESULTADOS_CONSOLIDADOS.md](RESULTADOS_CONSOLIDADOS.md).
 
 ## Relación con las fases del proyecto
 

@@ -62,13 +62,13 @@ TECNICA_RELEVANCIA = {
                               "invalid_login", "brute"],
                              ["5551", "5712", "5720", "5716", "5710"]),
     "portscan":             (["ids", "suricata", "recon", "scan"],
-                             ["100020", "100021", "100022"]),
+                             ["100020", "100021", "100022", "100023", "100004"]),
     "portscan_sigiloso":    (["ids", "suricata", "recon", "scan"],
-                             ["100020", "100021", "100022"]),
+                             ["100020", "100021", "100022", "100023", "100004"]),
     "sql_injection":        (["sql_injection", "web_scan", "sqli", "web", "ids", "suricata"],
-                             ["31103", "31104", "31106", "31105", "31101", "100040", "100041"]),
+                             ["31103", "31104", "31106", "31105", "31101", "100040", "100041", "100045", "100046"]),
     "sqli_evasion":         (["sql_injection", "web_scan", "sqli", "web", "ids", "suricata"],
-                             ["31103", "31104", "31106", "31105", "31101", "100040", "100041"]),
+                             ["31103", "31104", "31106", "31105", "31101", "100040", "100041", "100045", "100046"]),
     # PtH: deteccion fiable por COMPORTAMIENTO de host (92650 servicio creado
     # desde ADMIN$) + Sysmon (100031). 100032 quedo como informativa (no cuenta
     # como deteccion: a nivel de red el PtH no se distingue de la admin legitima).
